@@ -1,48 +1,43 @@
 # -*- coding: utf-8 -*-
 """
--------------------------------------------------
-   File Name: enhance
-   Description: 对所有query进行增强
-   Author: aidan
-   date: 2023/9/13
--------------------------------------------------
+Query enhancement via local vLLM server.
+Requires: vLLM server running on localhost:8081
+    CUDA_VISIBLE_DEVICES=0,1 python -m vllm.entrypoints.openai.api_server \
+        --model meta-llama/Meta-Llama-3-8B-Instruct \
+        --tensor-parallel-size 2 --port 8081
 """
-__author__ = 'aidan'
-
-
-
+import json
 import openai
 from tqdm import tqdm
-import json
-import random
 from config import PROMPT_LIST
 
+# ── OpenAI-compatible client pointing at local vLLM ───────────────────────────
+client = openai.OpenAI(
+    api_key="dummy",
+    base_url="http://localhost:8081/v1",
+)
+MODEL = "meta-llama/Meta-Llama-3-8B-Instruct"   # must match what vLLM is serving
+# ──────────────────────────────────────────────────────────────────────────────
 
-
-openai.api_key = "EMPTY" # Not support yet
-openai.api_base = "http://localhost:8081/v1"
-# openai.api_base = "http://localhost:16363/v1"
-model = "vicuna-13b-v1.1"
-
-
-test_data = list(json.load(open('../combine/data/sub_test_sen_to_ids_300*5.json', 'r', encoding='utf-8')).keys())
-
+test_data = list(json.load(
+    open('../combine/data/sub_test_sen_to_ids_300*5.json', 'r', encoding='utf-8')
+).keys())
 
 text_to_enhanced = {}
-prompt = PROMPT_LIST[0]
+prompt_template = PROMPT_LIST[0]
 
-for text in tqdm(test_data):
-    content = prompt.format(query=text)
-    # create a chat completion
-    completion = openai.ChatCompletion.create(
-      model=model,
-      messages=[{
-         "role": "user",
-         "content": content
-      }]
+for text in tqdm(test_data, desc='enhancing queries'):
+    content = prompt_template.format(query=text)
+    completion = client.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": content}],
+        temperature=0.7,
+        max_tokens=512,
     )
-    # print the completion
     result = completion.choices[0].message.content
     text_to_enhanced[text] = result
 
-json.dump(text_to_enhanced, open('data/text_to_raw_enhanced_3.json', 'w', encoding='utf-8'))
+json.dump(text_to_enhanced,
+          open('data/text_to_raw_enhanced.json', 'w', encoding='utf-8'),
+          ensure_ascii=False)
+print('Saved data/text_to_raw_enhanced.json')

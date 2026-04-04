@@ -51,7 +51,7 @@ def main(tag_file, save_file_path):
     # 过滤
     new_all_tags = []
     for tag, num in tag_counter.items():
-        if 3 <= num <= 10 and len(tag.split()) > 1:
+        if 50 <= num <= 500 and len(tag.split()) > 1:
             new_all_tags.append(tag)
     print('total [{num}] tags, like {tags}'.format(num=len(new_all_tags), tags=new_all_tags[:10]))
 
@@ -64,8 +64,8 @@ def main(tag_file, save_file_path):
     print('save in {}'.format(save_file_path))
 
 if __name__ == '__main__':
-    tag_file = 'data/tag_responses.json'
-    save_file_path = 'data/img_to_tags.json'
+    tag_file = 'data/tag_responses_full.json'
+    save_file_path = 'data/img_to_tags_full.json'
 
     main(tag_file, save_file_path)
 

@@ -1,68 +1,67 @@
 # -*- coding: utf-8 -*-
 """
--------------------------------------------------
-   File Name: enhanced_text_encoder
-   Description: 增强后的文本的编码器
-   Author: aidan
-   date: 2023/9/18
--------------------------------------------------
+Enhanced text encoder — run one model per GPU in parallel via CUDA_VISIBLE_DEVICES.
+Usage:
+    CUDA_VISIBLE_DEVICES=0 python enhanced_text_encoder.py --model clip-vit-base-patch32
+    CUDA_VISIBLE_DEVICES=1 python enhanced_text_encoder.py --model groupvit-gcc-yfcc
+    CUDA_VISIBLE_DEVICES=2 python enhanced_text_encoder.py --model align-base
+    CUDA_VISIBLE_DEVICES=3 python enhanced_text_encoder.py --model clipseg-rd64-refined
 """
-__author__ = 'aidan'
-
-
-
-# -*- coding: utf-8 -*-
-"""
--------------------------------------------------
-   File Name: enhanceTextEncoder
-   Description: 
-   Author: aidan
-   date: 2023/6/19
--------------------------------------------------
-"""
-__author__ = 'aidan'
-
-
+import argparse
 import json
-from PIL import Image
-from transformers import AutoTokenizer, CLIPModel, AlignModel, CLIPSegModel, GroupViTModel
-from tqdm import tqdm
 import os
 import torch
+from tqdm import tqdm
+from transformers import AutoTokenizer, CLIPModel, AlignModel, CLIPSegModel, GroupViTModel
+
+ALL_MODELS = ['align-base', 'clipseg-rd64-refined', 'clip-vit-base-patch32', 'groupvit-gcc-yfcc']
+
+
+def load_model(model_name, model_path):
+    if model_name == 'align-base':
+        return AlignModel.from_pretrained(model_path)
+    elif model_name == 'clipseg-rd64-refined':
+        return CLIPSegModel.from_pretrained(model_path)
+    elif model_name == 'clip-vit-base-patch32':
+        return CLIPModel.from_pretrained(model_path)
+    elif model_name == 'groupvit-gcc-yfcc':
+        return GroupViTModel.from_pretrained(model_path)
+    raise ValueError(f'Unknown model: {model_name}')
+
+
+def encode(model_name, model_dir, text_to_enhanced, device):
+    model_path = os.path.join(model_dir, model_name)
+    model = load_model(model_name, model_path).to(device)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+
+    all_text_features = []
+    with torch.no_grad():
+        for text, enhanced_list in tqdm(text_to_enhanced.items(), desc=model_name):
+            if enhanced_list:
+                query_list = [text + ' ' + e for e in enhanced_list]
+            else:
+                query_list = [text]
+            inputs = tokenizer(query_list, padding=True, return_tensors="pt",
+                               max_length=64, truncation=True).to(device)
+            feat = model.get_text_features(**inputs)
+            all_text_features.append(feat.cpu())
+
+    out_path = f'data/enhanced_text_features_{model_name}.pt'
+    torch.save(all_text_features, out_path)
+    print(f'Saved {out_path}')
+
 
 if __name__ == '__main__':
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model_dir = '../../../models'
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model',        default=None)
+    parser.add_argument('--model_dir',    default=os.path.expanduser('~/models'))
+    parser.add_argument('--enhanced_file',
+                        default='../enhance/data/text_to_enhanced_list.json')
+    args = parser.parse_args()
 
-    model_name_list = ['align-base', 'clipseg-rd64-refined', 'clip-vit-base-patch32', 'groupvit-gcc-yfcc']
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    text_to_enhanced = json.load(open(args.enhanced_file, 'r', encoding='utf-8'))
+    models_to_run = [args.model] if args.model else ALL_MODELS
 
-    new_text_to_enhanced = json.load(open('../enhance/data/text_to_enhanced_list_2.json', 'r', encoding='utf-8'))
-
-    for model_name in tqdm(model_name_list):
-
-        model_path = os.path.join(model_dir, model_name)
-        if model_name == 'align-base':
-            model = AlignModel.from_pretrained(model_path)
-        elif model_name == 'clipseg-rd64-refined':
-            model = CLIPSegModel.from_pretrained(model_path)
-        elif model_name == 'clip-vit-base-patch32':
-            model = CLIPModel.from_pretrained(model_path)
-        elif model_name == 'groupvit-gcc-yfcc':
-            model = GroupViTModel.from_pretrained(model_path)
-
-        model.to(device)
-
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
-        all_text_features = []
-        with torch.no_grad():
-            for text, enhanced_text_list in new_text_to_enhanced.items():
-                if len(enhanced_text_list) > 0:
-                    query_list = [text + ' ' + enhanced_text for enhanced_text in enhanced_text_list]
-                else:
-                    query_list = [text]
-                # 有一个模型不支持太长的序列
-                inputs = tokenizer(query_list, padding=True, return_tensors="pt", max_length=64, truncation=True).to(device)
-                text_features = model.get_text_features(**inputs)
-                all_text_features.append(text_features)
-
-        torch.save(all_text_features, 'data/enhanced_text_features_{}_2.pt'.format(model_name))
+    for m in models_to_run:
+        encode(m, args.model_dir, text_to_enhanced, device)

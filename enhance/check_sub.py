@@ -18,10 +18,9 @@ import openai
 from tqdm import tqdm
 import random
 
-openai.api_key = "EMPTY" # Not support yet
-openai.api_base = "http://localhost:8081/v1"
-# openai.api_base = "http://localhost:16363/v1"
-model = "vicuna-13b-v1.1"
+openai.api_key = "ollama"
+openai.api_base = "http://localhost:11434/v1"
+model = "llama3:latest"
 
 
 if __name__ == '__main__':

@@ -20,10 +20,9 @@ from config import PROMPT_LIST
 
 
 
-openai.api_key = "EMPTY" # Not support yet
-openai.api_base = "http://localhost:8081/v1"
-# openai.api_base = "http://localhost:16363/v1"
-model = "vicuna-13b-v1.1"
+openai.api_key = "OPENAI_KEY"
+openai.api_base = "https://api.openai.com/v1"
+model = "gpt-3.5-turbo"
 
 flickr30k_test_data = json.load(open('data/flickr30k_test_data.json', 'r', encoding='utf-8'))
 
