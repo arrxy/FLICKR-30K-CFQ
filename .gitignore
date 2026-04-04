@@ -1,3 +1,5 @@
 /flickr30k-images/
 .claude
 CLAUDE.md
+*.zip
+*.tar.gz
